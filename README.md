@@ -47,23 +47,60 @@
 
 ## Установка
 
-### Готовые сборки
+Бинарь статический и не тянет за собой ничего: ни libc, ни рантайма. Он
+работает и в дистрибутиве на musl, и в контейнере `FROM scratch`. Достаточно
+положить один файл в `PATH`.
 
-Скачайте архив под свою платформу со страницы
-[Releases](https://github.com/Tinddd28/wend/releases):
+### Одной командой
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/Tinddd28/wend/main/scripts/install.sh | sh
+```
+
+Скрипт определит ОС и архитектуру, скачает последний релиз, **сверит
+контрольную сумму** и положит бинарь в `/usr/local/bin` (при необходимости
+через `sudo`).
+
+Полезные переменные:
+
+```sh
+PREFIX=$HOME/.local/bin sh install.sh   # установить без sudo
+VERSION=nightly         sh install.sh   # свежая сборка из main
+VERSION=v1.0.0          sh install.sh   # конкретная версия
+sh install.sh --dry-run                 # посмотреть, что будет скачано
+```
+
+Если не хочется выполнять скачанный скрипт не глядя — а это разумно —
+скачайте его отдельно, прочитайте и запустите:
+
+```sh
+curl -fsSLO https://raw.githubusercontent.com/Tinddd28/wend/main/scripts/install.sh
+less install.sh && sh install.sh
+```
+
+### Скачать архив вручную
+
+Со страницы [Releases](https://github.com/Tinddd28/wend/releases):
 
 ```sh
 tar -xzf wend_v1.0.0_linux_amd64.tar.gz
+sha256sum -c SHA256SUMS --ignore-missing   # SHA256SUMS лежит рядом с архивами
 sudo install -m 0755 wend /usr/local/bin/wend
 ```
 
-Проверить контрольную сумму (`SHA256SUMS` лежит рядом с архивами):
-
-```sh
-sha256sum -c SHA256SUMS --ignore-missing
-```
-
 Под Windows архивы в формате `.zip`, бинарь внутри — `wend.exe`.
+
+### Сборки без ожидания релиза
+
+- **`nightly`** — свежая сборка каждого коммита в `main`, по постоянным
+  ссылкам вида
+  `https://github.com/Tinddd28/wend/releases/download/nightly/wend_nightly_linux_amd64.tar.gz`.
+  Тег переезжает на каждый коммит, это канал «последняя сборка», а не
+  история версий.
+- **Артефакты CI** — на странице любого прогона
+  [Actions](https://github.com/Tinddd28/wend/actions) внизу лежат готовые
+  бинари под все шесть платформ, в том числе для пул-реквестов. Хранятся 30
+  дней, доступны авторизованным пользователям GitHub.
 
 ### go install
 
@@ -168,26 +205,35 @@ internal/tui/          bubbletea-модель, layout, клавиши
   └── style/           палитра и обрезка строк по ширине
 ```
 
-## Выпуск релиза
+## Сборка и публикация
 
-Релиз собирается и публикуется автоматически по тегу:
+Три workflow, все на официальных экшенах и `gh` CLI, без сторонних зависимостей:
+
+| Workflow | Когда | Что делает |
+| --- | --- | --- |
+| [`ci.yml`](.github/workflows/ci.yml) | push в `main`, пул-реквесты | gofmt, `go vet`, `go test -race`, сборка под 6 платформ с выгрузкой артефактов |
+| [`nightly.yml`](.github/workflows/nightly.yml) | push в `main` | тесты и обновление предрелиза `nightly` — свежая сборка по постоянной ссылке |
+| [`release.yml`](.github/workflows/release.yml) | тег `v*` | проверки, тесты, архивы с `SHA256SUMS`, GitHub Release со списком изменений |
+
+Выпустить релиз:
 
 ```sh
 git tag -a v1.0.0 -m "v1.0.0"
 git push origin v1.0.0
 ```
 
-Workflow [`.github/workflows/release.yml`](.github/workflows/release.yml)
-прогоняет проверки и тесты, кросс-компилирует бинари под linux, macOS и
-Windows (amd64 и arm64), собирает архивы с `SHA256SUMS` и создаёт GitHub
-Release с автоматически сгенерированным списком изменений. Теги с дефисом
-(`v1.0.0-rc1`) помечаются как предрелизные.
+Теги с дефисом (`v1.0.0-rc1`) помечаются предрелизными и не подменяют собой
+«последнюю версию».
 
-Те же артефакты можно собрать локально:
+Те же артефакты собираются локально, без ожидания CI:
 
 ```sh
 ./scripts/build-release.sh v1.0.0   # результат в dist/
 ```
+
+Версия Go во всех workflow берётся из `go.mod`, чтобы CI не разъезжался с
+проектом. Сборка всегда идёт с `CGO_ENABLED=0` и `-trimpath` — отсюда
+статический бинарь и воспроизводимость.
 
 ## Лицензия
 

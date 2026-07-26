@@ -1,0 +1,70 @@
+name: nightly
+
+# Каждый коммит в main обновляет предрелиз с тегом `nightly`. Смысл — дать
+# постоянные ссылки на свежую сборку:
+#
+#   https://github.com/Tinddd28/wend/releases/download/nightly/wend_nightly_linux_amd64.tar.gz
+#
+# Артефакты из ci.yml для этого не годятся: они доступны только авторизованным
+# на GitHub пользователям, лежат внутри двойного архива и удаляются через 30
+# дней. Тег `nightly` намеренно передвигается на свежий коммит — это канал
+# «последняя сборка», а не история версий; за историей — обычные теги v*.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# Два быстрых коммита подряд не должны гонки ради перезаписывать релиз
+# друг друга — публикуется только последний.
+concurrency:
+  group: nightly
+  cancel-in-progress: true
+
+jobs:
+  nightly:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      # Тесты до сборки: сломанный main не должен попадать в канал,
+      # которым пользуются люди.
+      - name: Тесты
+        run: go test -race ./...
+
+      - name: Версия сборки
+        id: version
+        run: echo "name=nightly-$(git describe --tags --always)" >> "$GITHUB_OUTPUT"
+
+      - name: Сборка артефактов
+        run: ./scripts/build-release.sh nightly
+
+      - name: Обновление предрелиза nightly
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUILD: ${{ steps.version.outputs.name }}
+        run: |
+          # Релиз пересоздаётся целиком вместе с тегом: --clobber заменил бы
+          # файлы, но оставил бы тег на старом коммите, и «последняя сборка»
+          # указывала бы не туда.
+          gh release delete nightly --yes --cleanup-tag || true
+
+          gh release create nightly \
+            --target "$GITHUB_SHA" \
+            --title "Последняя сборка из main ($BUILD)" \
+            --prerelease \
+            --notes "Автоматическая сборка коммита \`$GITHUB_SHA\` из ветки main.
+
+          Это не стабильный релиз — тег \`nightly\` переезжает на каждый коммит.
+          Стабильные версии: https://github.com/${GITHUB_REPOSITORY}/releases/latest
+
+          Проверить контрольные суммы: \`sha256sum -c SHA256SUMS --ignore-missing\`" \
+            dist/*

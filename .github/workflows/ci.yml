@@ -26,31 +26,56 @@ jobs:
       - name: Тесты
         run: go test -race ./...
 
-  # Отдельная проверка кросс-компиляции: в проекте есть код под build-тегом
-  # unix (inode, число ссылок, размер на диске) с заглушкой для остальных
-  # платформ, и сломать её, не заметив на linux, очень легко.
-  cross-compile:
+  # Сборка бинарей под все платформы релиза. Помимо проверки, что ничего не
+  # сломалось (в проекте есть код под build-тегом unix с заглушкой для
+  # остальных платформ, и сломать её, не заметив на linux, очень легко),
+  # результат выгружается артефактами: их можно скачать со страницы прогона
+  # и попробовать сборку из любой ветки или пул-реквеста, не дожидаясь тега.
+  build:
+    name: сборка ${{ matrix.goos }}/${{ matrix.goarch }}
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
-        target:
-          - linux/amd64
-          - linux/arm64
-          - darwin/arm64
-          - windows/amd64
+        include:
+          - { goos: linux, goarch: amd64 }
+          - { goos: linux, goarch: arm64 }
+          - { goos: darwin, goarch: amd64 }
+          - { goos: darwin, goarch: arm64 }
+          - { goos: windows, goarch: amd64 }
+          - { goos: windows, goarch: arm64 }
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Полная история нужна для git describe — он даёт версию,
+          # которую видно в `wend --version` у скачанной сборки.
+          fetch-depth: 0
 
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
 
-      - name: Сборка ${{ matrix.target }}
+      - name: Сборка
         env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          # CGO_ENABLED=0 даёт статический бинарь без зависимости от libc
+          # целевой системы; -trimpath убирает пути сборочной машины.
           CGO_ENABLED: "0"
         run: |
-          GOOS="${{ matrix.target }}"
-          GOARCH="${GOOS#*/}"
-          GOOS="${GOOS%/*}"
-          export GOOS GOARCH
-          go build -trimpath -o /dev/null ./cmd/wend
+          binary="wend"
+          if [ "$GOOS" = "windows" ]; then
+            binary="wend.exe"
+          fi
+          version="$(git describe --tags --always --dirty)-ci"
+          go build -trimpath \
+            -ldflags "-s -w -X main.version=${version}" \
+            -o "dist/${binary}" ./cmd/wend
+          ls -lh dist/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wend-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: dist/
+          retention-days: 30
+          if-no-files-found: error
