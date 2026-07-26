@@ -1,5 +1,14 @@
 # wend
 
+> **In English:** wend is an interactive disk usage analyzer for the
+> terminal — a directory tree with shares and sizes next to a sunburst or
+> treemap chart, drawn with character cells. It ships as a single static
+> binary with no dependencies. Full documentation:
+> **[README.en.md](README.en.md)**. Note that the application interface
+> itself is currently in Russian only.
+
+*[English version](README.en.md)*
+
 Интерактивный анализатор занятого места на диске для терминала.
 
 Сканирует директорию в фоне и сразу показывает дерево с долями и размерами,
@@ -82,7 +91,8 @@ less install.sh && sh install.sh
 
 На странице [Releases](https://github.com/Tinddd28/wend/releases) рядом с
 архивами лежат **распакованные бинари** — их можно скачать и запустить сразу,
-без распаковки. Имя вида `wend_<версия>_<ос>_<архитектура>`:
+без распаковки. Имя вида `wend_<ос>_<архитектура>`, версии в нём намеренно
+нет: только так работает постоянная ссылка на «последний релиз».
 
 ```sh
 curl -fsSLO https://github.com/Tinddd28/wend/releases/latest/download/wend_linux_amd64
@@ -106,7 +116,7 @@ sudo install -m 0755 wend /usr/local/bin/wend
 
 - **`nightly`** — свежая сборка каждого коммита в `main`, по постоянным
   ссылкам вида
-  `https://github.com/Tinddd28/wend/releases/download/nightly/wend_nightly_linux_amd64.tar.gz`.
+  `https://github.com/Tinddd28/wend/releases/download/nightly/wend_linux_amd64`.
   Тег переезжает на каждый коммит, это канал «последняя сборка», а не
   история версий.
 - **Артефакты CI** — на странице любого прогона
