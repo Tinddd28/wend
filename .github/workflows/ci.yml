@@ -1,0 +1,56 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Форматирование
+        run: test -z "$(gofmt -l ./cmd ./internal)" || { gofmt -d ./cmd ./internal; exit 1; }
+
+      - name: go vet
+        run: go vet ./...
+
+      # -race важен: дерево читается из View/Update, а наполняется из
+      # горутины сканера.
+      - name: Тесты
+        run: go test -race ./...
+
+  # Отдельная проверка кросс-компиляции: в проекте есть код под build-тегом
+  # unix (inode, число ссылок, размер на диске) с заглушкой для остальных
+  # платформ, и сломать её, не заметив на linux, очень легко.
+  cross-compile:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target:
+          - linux/amd64
+          - linux/arm64
+          - darwin/arm64
+          - windows/amd64
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Сборка ${{ matrix.target }}
+        env:
+          CGO_ENABLED: "0"
+        run: |
+          GOOS="${{ matrix.target }}"
+          GOARCH="${GOOS#*/}"
+          GOOS="${GOOS%/*}"
+          export GOOS GOARCH
+          go build -trimpath -o /dev/null ./cmd/wend

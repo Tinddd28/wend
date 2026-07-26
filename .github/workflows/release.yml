@@ -1,0 +1,73 @@
+name: release
+
+# Релиз выпускается по тегу вида v1.2.3. workflow_dispatch оставлен, чтобы
+# можно было перевыпустить артефакты для уже существующего тега, не двигая
+# сам тег.
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Тег, для которого собрать релиз (например v1.2.3)"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Полная история нужна и для git describe в скрипте сборки, и для
+          # --generate-notes, который строит список изменений от прошлого тега.
+          fetch-depth: 0
+          ref: ${{ inputs.tag || github.ref }}
+
+      - uses: actions/setup-go@v5
+        with:
+          # Версия берётся из go.mod, чтобы CI не разъезжался с проектом.
+          go-version-file: go.mod
+
+      - name: Определить версию
+        id: version
+        run: echo "tag=${{ inputs.tag || github.ref_name }}" >> "$GITHUB_OUTPUT"
+
+      - name: Проверки
+        run: |
+          test -z "$(gofmt -l ./cmd ./internal)" || { gofmt -d ./cmd ./internal; exit 1; }
+          go vet ./...
+
+      # Тесты стоят до сборки намеренно: релиз не должен публиковаться,
+      # если на теге что-то сломано.
+      - name: Тесты
+        run: go test -race ./...
+
+      - name: Сборка артефактов
+        run: ./scripts/build-release.sh "${{ steps.version.outputs.tag }}"
+
+      - name: Публикация релиза
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          # Теги с дефисом (v1.0.0-rc1, v2.0.0-beta) помечаются как
+          # предрелизные, чтобы не подменять собой «последнюю версию».
+          prerelease=""
+          case "$TAG" in
+            *-*) prerelease="--prerelease" ;;
+          esac
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/* --clobber
+          else
+            gh release create "$TAG" \
+              --title "$TAG" \
+              --generate-notes \
+              $prerelease \
+              dist/*
+          fi
