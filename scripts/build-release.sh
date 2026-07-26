@@ -76,6 +76,22 @@ for platform in "${PLATFORMS[@]}"; do
 		tar -czf "$outdir/${archive}.tar.gz" -C "$stage" "$binary" LICENSE README.md
 	fi
 
+	# Рядом с архивом кладётся и сам бинарь, без упаковки: со страницы
+	# релиза его можно скачать и запустить сразу. Архив остаётся — он втрое
+	# меньше и несёт LICENSE с README.
+	#
+	# В имени голого бинаря намеренно НЕТ версии: только так работает
+	# постоянная ссылка вида
+	#   /releases/latest/download/wend_linux_amd64
+	# — GitHub требует в ней точное имя ассета, и с версией внутри она
+	# ломалась бы на каждом релизе.
+	bare="wend_${goos}_${goarch}"
+	if [ "$goos" = "windows" ]; then
+		bare="${bare}.exe"
+	fi
+	cp "$stage/$binary" "$outdir/$bare"
+	chmod +x "$outdir/$bare"
+
 	rm -rf "$stage"
 	echo "собрано: ${archive}"
 done

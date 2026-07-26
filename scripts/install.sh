@@ -74,11 +74,20 @@ esac
 if [ "$VERSION" = "latest" ]; then
 	# Тег последнего стабильного релиза берётся из API. jq намеренно не
 	# используется: он есть далеко не везде, а поле нужно ровно одно.
+	#
+	# Ответ сначала кладётся в переменную, и только потом разбирается:
+	# при `fetch | grep -m1` grep закрывает пайп после первого совпадения,
+	# curl не может дописать остаток и печатает «curl: (23)» — установка
+	# при этом проходит успешно, но выглядит как сбой.
+	api="$(fetch "https://api.github.com/repos/$REPO/releases/latest")" ||
+		die "не удалось обратиться к API GitHub"
+
 	VERSION="$(
-		fetch "https://api.github.com/repos/$REPO/releases/latest" |
-			grep -m1 '"tag_name"' |
+		printf '%s\n' "$api" |
+			grep '"tag_name"' |
+			head -1 |
 			sed 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/'
-	)" || die "не удалось определить последнюю версию"
+	)"
 
 	[ -n "$VERSION" ] || die "стабильных релизов пока нет.
 Свежую сборку из main можно поставить так:  VERSION=nightly $0"

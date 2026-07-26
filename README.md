@@ -78,9 +78,21 @@ curl -fsSLO https://raw.githubusercontent.com/Tinddd28/wend/main/scripts/install
 less install.sh && sh install.sh
 ```
 
-### Скачать архив вручную
+### Скачать готовый бинарь
 
-Со страницы [Releases](https://github.com/Tinddd28/wend/releases):
+На странице [Releases](https://github.com/Tinddd28/wend/releases) рядом с
+архивами лежат **распакованные бинари** — их можно скачать и запустить сразу,
+без распаковки. Имя вида `wend_<версия>_<ос>_<архитектура>`:
+
+```sh
+curl -fsSLO https://github.com/Tinddd28/wend/releases/latest/download/wend_linux_amd64
+chmod +x wend_linux_amd64
+./wend_linux_amd64 ~/Downloads
+```
+
+### Скачать архив
+
+Архив втрое меньше и несёт с собой `LICENSE` и `README`:
 
 ```sh
 tar -xzf wend_v1.0.0_linux_amd64.tar.gz
